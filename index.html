@@ -2,48 +2,67 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f5f7fb">
 <title>单词复习</title>
 <style>
-html,body{margin:0;height:100%;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f5f7fb;color:#1f2937}
-body{display:flex;align-items:center;justify-content:center}
-.box{text-align:center;padding:28px;max-width:420px}
+html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f5f7fb;color:#1f2937}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;box-sizing:border-box;padding:24px}
+.box{width:min(92vw,460px);text-align:center;padding:30px 24px;border-radius:22px;background:#fff;box-shadow:0 12px 40px rgba(16,24,40,.08)}
+.logo{width:60px;height:60px;border-radius:16px;margin:0 auto 18px;background:#eaf0f8;display:flex;align-items:center;justify-content:center;font-size:30px}
 .spinner{width:42px;height:42px;border:4px solid #dbe3ef;border-top-color:#6b84aa;border-radius:50%;animation:r .9s linear infinite;margin:0 auto 18px}
 @keyframes r{to{transform:rotate(360deg)}}
-.msg{font-size:16px;line-height:1.6}.hint{font-size:13px;color:#667085;margin-top:10px}
-button{border:0;border-radius:12px;padding:12px 18px;background:#6b84aa;color:white;font-size:15px;margin-top:18px;display:none}
+.msg{font-size:18px;line-height:1.6;font-weight:650}.hint{font-size:14px;color:#667085;margin-top:10px;line-height:1.6}
+.status{font-size:13px;color:#98a2b3;margin-top:14px;word-break:break-all}
+button{border:0;border-radius:12px;padding:12px 18px;background:#6b84aa;color:#fff;font-size:15px;margin-top:18px;display:none;cursor:pointer}
+button:active{transform:scale(.97)}
 </style>
 </head>
 <body>
 <div class="box">
-  <div class="spinner"></div>
-  <div class="msg" id="msg">正在连接单词复习服务器…</div>
-  <div class="hint" id="hint">服务器每次启动后地址可能变化，系统会自动找到最新地址。</div>
-  <button id="retry" onclick="start()">重新连接</button>
+  <div class="logo">📚</div>
+  <div class="spinner" id="spinner"></div>
+  <div class="msg" id="msg">正在等待电脑服务器启动…</div>
+  <div class="hint" id="hint">请确保电脑上的“启动单词复习服务器.bat”正在运行，并保持联网。</div>
+  <div class="status" id="status"></div>
+  <button id="retry" onclick="start()">立即重试</button>
 </div>
 <script>
-const CONFIG_URL = './current.json?_=' + Date.now();
+const POLL_MS = 10000;
 let timer;
+let busy = false;
+function setState(message, hint, showButton=false){
+  document.getElementById('msg').textContent = message;
+  document.getElementById('hint').textContent = hint;
+  document.getElementById('retry').style.display = showButton ? 'inline-block' : 'none';
+}
 async function start(){
+  if(busy) return;
+  busy = true;
   clearTimeout(timer);
-  document.querySelector('.spinner').style.display='block';
-  document.getElementById('retry').style.display='none';
-  document.getElementById('msg').textContent='正在连接单词复习服务器…';
+  document.getElementById('spinner').style.display='block';
+  setState('正在查找服务器…','电脑上的 Tunnel 每次启动后地址可能变化，这里会自动获取最新地址。');
   try{
-    const r=await fetch(CONFIG_URL,{cache:'no-store'});
+    const r = await fetch('./current.json?_=' + Date.now(), {cache:'no-store'});
     if(!r.ok) throw new Error('current.json HTTP '+r.status);
-    const data=await r.json();
-    if(!data.url) throw new Error('没有服务器地址');
-    const u=new URL(data.url);
-    if(u.protocol!=='https:') throw new Error('服务器地址不是 HTTPS');
-    location.replace(u.href);
-    return;
+    const data = await r.json();
+    const raw = String(data.url || '').trim();
+    const isReady = /^https:\/\/[a-z0-9-]+\.trycloudflare\.com\/?$/i.test(raw);
+    if(!isReady){
+      document.getElementById('spinner').style.display='block';
+      setState('电脑服务器还没有上线','保持电脑端启动窗口不要关闭。检测到新的 Tunnel 后，这个页面会自动跳转。');
+      timer=setTimeout(start,POLL_MS);
+      return;
+    }
+    document.getElementById('status').textContent = '已找到服务器：' + raw;
+    location.replace(raw.endsWith('/') ? raw : raw + '/');
   }catch(e){
-    document.querySelector('.spinner').style.display='none';
-    document.getElementById('msg').textContent='暂时无法连接电脑服务器';
-    document.getElementById('hint').textContent='请确认电脑上的“启动单词复习服务器.bat”已经运行，并保持电脑联网。';
-    document.getElementById('retry').style.display='inline-block';
-    timer=setTimeout(start,15000);
+    document.getElementById('spinner').style.display='none';
+    document.getElementById('status').textContent = '暂时读取不到固定入口配置：' + e.message;
+    setState('固定入口暂时无法读取','可以稍后重试。GitHub Pages 更新通常需要一点时间。',true);
+    timer=setTimeout(start,POLL_MS*2);
+  }finally{
+    busy=false;
   }
 }
 start();

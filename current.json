@@ -1,5 +1,5 @@
 {
-  "url": "https://YOUR-TUNNEL.trycloudflare.com/",
-  "updated_at": "1970-01-01T00:00:00Z",
-  "note": "这个文件由电脑端 update_tunnel.py 自动更新；不要手动删除。"
+  "url": "",
+  "updated_at": "",
+  "note": "由电脑端启动脚本自动更新。空地址表示电脑服务器尚未启动。"
 }
